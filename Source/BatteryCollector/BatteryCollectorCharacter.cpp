@@ -2,6 +2,8 @@
 
 #include "BatteryCollector.h"
 #include "BatteryCollectorCharacter.h"
+#include "Pickup.h"
+#include "BatteryPickup.h"
 
 //////////////////////////////////////////////////////////////////////////
 // ABatteryCollectorCharacter
@@ -37,13 +39,29 @@ ABatteryCollectorCharacter::ABatteryCollectorCharacter()
 	FollowCamera->AttachTo(CameraBoom, USpringArmComponent::SocketName); // Attach the camera to the end of the boom and let the boom adjust to match the controller orientation
 	FollowCamera->bUsePawnControlRotation = false; // Camera does not rotate relative to arm
 
-	// Create 
+	// Create the Collection Sphere
 	CollectionSphere = CreateDefaultSubobject<USphereComponent>( TEXT( "CollectionSphere" ) );
 	CollectionSphere->AttachTo( RootComponent );
 	CollectionSphere->SetSphereRadius( 200.0f );
 
 	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
 	// are set in the derived blueprint asset named MyCharacter (to avoid direct content references in C++)
+
+	// Set a base power level for the character
+	InitialPower = 2000.f;
+	CharacterPower = InitialPower;
+}
+
+// Reports starting power
+float ABatteryCollectorCharacter::GetInitialPower( )
+{
+	return InitialPower;
+}
+
+//  Report current power
+float ABatteryCollectorCharacter::GetCurrentPower( )
+{
+	return CharacterPower;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -55,6 +73,8 @@ void ABatteryCollectorCharacter::SetupPlayerInputComponent(class UInputComponent
 	check(InputComponent);
 	InputComponent->BindAction("Jump", IE_Pressed, this, &ACharacter::Jump);
 	InputComponent->BindAction("Jump", IE_Released, this, &ACharacter::StopJumping);
+
+	InputComponent->BindAction( "Collect", IE_Pressed, this, &ABatteryCollectorCharacter::CollectPickups );
 
 	InputComponent->BindAxis("MoveForward", this, &ABatteryCollectorCharacter::MoveForward);
 	InputComponent->BindAxis("MoveRight", this, &ABatteryCollectorCharacter::MoveRight);
@@ -70,6 +90,43 @@ void ABatteryCollectorCharacter::SetupPlayerInputComponent(class UInputComponent
 	// handle touch devices
 	InputComponent->BindTouch(IE_Pressed, this, &ABatteryCollectorCharacter::TouchStarted);
 	InputComponent->BindTouch(IE_Released, this, &ABatteryCollectorCharacter::TouchStopped);
+}
+
+void ABatteryCollectorCharacter::CollectPickups( )
+{
+	// Get all overlapping Actors and store them in an array
+	TArray<AActor*> CollectedActors;
+	CollectionSphere->GetOverlappingActors( CollectedActors );
+
+	// Keep track of the collected battery power
+	float CollectedPower = 0;
+
+	// For each Actor we Collected
+	for( int32 iCollected = 0; iCollected < CollectedActors.Num(); iCollected++ )
+	{
+		// Cast the actor to APickup
+		APickup * const TestPickup = Cast<APickup>( CollectedActors[ iCollected ] );
+		// If the cast is successful and the pickup is valid and active
+		if( TestPickup && !TestPickup->IsPendingKill( ) && TestPickup->IsActive( ) )
+		{
+			// Call the pickup's WasCollected function
+			TestPickup->WasCollected( );
+			// Check to see if the pickup is also a battery
+			ABatteryPickup*const TestBattery = Cast<ABatteryPickup>( TestPickup );
+			if( TestBattery )
+			{
+				// increase the collected power
+				CollectedPower += TestBattery->GetPower( );
+			}
+			// Deactivate the pickup
+			TestPickup->SetActive( false );
+		}
+	}
+
+	if( CollectedPower > 0 )
+	{
+		UpdatePower( CollectedPower );
+	}
 }
 
 
@@ -100,6 +157,11 @@ void ABatteryCollectorCharacter::LookUpAtRate(float Rate)
 {
 	// calculate delta for this frame from the rate information
 	AddControllerPitchInput(Rate * BaseLookUpRate * GetWorld()->GetDeltaSeconds());
+}
+
+void ABatteryCollectorCharacter::UpdatePower( float PowerChange )
+{
+	CharacterPower += PowerChange;
 }
 
 void ABatteryCollectorCharacter::MoveForward(float Value)

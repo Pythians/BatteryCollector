@@ -30,6 +30,20 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category=Camera)
 	float BaseLookUpRate;
 
+	// Accessor function for initial power
+	UFUNCTION( BlueprintPure, Category = "Power" )
+		float GetInitialPower( );
+
+	// Accessor function for current power
+	UFUNCTION( BlueprintPure, Category = "Power" )
+		float GetCurrentPower( );
+
+	/*
+	* Function to update the character's power
+	* @param PowerChange This is the amount to change the power by, and it can be positive or negative.
+	*/
+	UFUNCTION( BlueprintCallable, Category = "Power" )
+		void UpdatePower( float PowerChange );
 protected:
 
 	/** Called for forwards/backward input */
@@ -60,6 +74,20 @@ protected:
 	// APawn interface
 	virtual void SetupPlayerInputComponent(class UInputComponent* InputComponent) override;
 	// End of APawn interface
+
+	// Called when we press a key to collect any pickups inside the CollectionSphere
+	UFUNCTION( BlueprintCallable, Category = "Pickups" )
+		void CollectPickups( );
+
+	// The starting power level of our character
+	UPROPERTY( EditAnyWhere, BlueprintReadWrite, Category = "Power" )
+		float InitialPower;
+
+private:
+
+	// Current power level of our character
+	UPROPERTY( VisibleAnyWhere, Category = "Power" )
+		float CharacterPower;
 
 public:
 	/** Returns CameraBoom subobject **/
